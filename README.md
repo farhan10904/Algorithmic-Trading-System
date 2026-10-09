@@ -116,7 +116,7 @@ The source exports timestamps, symbol, entry/exit prices, position direction and
 The current source imports `pandas`, `numpy`, `yfinance` and `requests` and expects a **private Alpha Vantage key** through `from secrets import Alpha_Key` in `project/config.py`.
 
 ```bash
-python -m pip install pandas numpy yfinance requests
+python -m pip install -r requirements.txt
 python project/Main.py
 ```
 
