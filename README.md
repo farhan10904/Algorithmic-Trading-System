@@ -1,145 +1,152 @@
 # Algorithmic Trading and Backtesting System
 
-**Independent Python project | Historical data analysis | Modular backtesting**
+**Independent Python project | Historical market data | Strategy simulation**
 
-A Python project for preparing historical equity prices, calculating moving-average indicators, generating long/short signals, simulating trade execution and exporting structured trade logs. The focus is **software architecture and research tooling**, not live automated trading or a claim of profitability.
+A modular Python application that downloads historical equity prices, calculates technical indicators, generates long/short trading signals, simulates trades and exports transaction logs.
 
-**Technologies:** Python, pandas, NumPy, yfinance, requests, Alpha Vantage (for price quotes).
+The objective was to design a **traceable research and backtesting pipeline**, not a live trading bot or a machine-learning price predictor.
 
-## System overview
+**Tools:** Python · pandas · NumPy · yfinance · Alpha Vantage · requests
 
-```mermaid
-flowchart LR
-    A[Historical price data] --> B[MA10 and MA50 indicators]
-    B --> C[Signal generation]
-    C --> D[Position state]
-    D --> E[Backtesting engine]
-    E --> F[Trade CSVs]
-    F --> G[Profit summary]
-```
+![Original project architecture](Images/trading-architecture.png)
 
-The live price-alert function and the historical backtester are **separate parts of the project**. Price alerts compare a quote against a configured threshold; they do not use a trained machine-learning predictor.
+*Original architecture diagram from the project documentation.*
 
-## Project capabilities
+## 1. Project objective
 
-- **Market data:** historical OHLC data via yfinance and individual quote requests via Alpha Vantage.
-- **Indicators:** MA10, MA50, percentage price changes and a moving-average trend state.
-- **Strategy:** +1 long / -1 short signal according to fast/slow moving-average values.
-- **Simulation:** long and short positions, percentage stop-loss and take-profit logic, transaction fees and slippage assumptions.
-- **Reporting:** per-symbol trade CSVs, a combined transaction log, run/error logs and profit summary exports.
-- **Configuration:** tickers, interval, indicator names, risk settings and output file paths in `project/config.py`.
+I wanted to turn a simple moving-average strategy into a complete workflow that could:
 
-## Source structure
+- Download and organise price data for multiple equities.
+- Calculate indicators and generate reproducible signal columns.
+- Model long and short positions, stop-loss/take-profit exits and transaction costs.
+- Record each simulated trade for inspection.
+- Summarise results across a configurable symbol list.
+
+The version in this repository uses **11 equity symbols** defined in [`project/logs/symbols.txt`](project/logs/symbols.txt). The signal rule is based on **MA10 and MA50**, not a trained predictive model.
+
+## 2. Software architecture
+
+The code is separated into a launcher, configuration and six functional modules.
+
+![Original module organisation](Images/trading-module-structure.png)
+
+*Original file and module structure.*
+
+| File | Responsibility |
+| --- | --- |
+| [`project/Main.py`](project/Main.py) | Interactive menu and entry point |
+| [`project/config.py`](project/config.py) | Symbols, moving averages, risk settings and file paths |
+| [`price_fetcher.py`](project/modules/price_fetcher.py) | Historical downloads (yfinance) and individual quotes (Alpha Vantage) |
+| [`indicators.py`](project/modules/indicators.py) | Moving averages, percentage changes and trend calculations |
+| [`strategy.py`](project/modules/strategy.py) | Long/short signals and carried positions |
+| [`backtest.py`](project/modules/backtest.py) | Trade opening, closing and simulated P&L |
+| [`runner.py`](project/modules/runner.py) | Workflow orchestration, CSV exports and summaries |
+| [`utils.py`](project/modules/utils.py) | Price logging and error handling |
+
+### Processing sequence
 
 ```text
-Algorithmic-Trading-System/
-├── README.md
-├── project/
-│   ├── Main.py                  # Interactive launcher
-│   ├── config.py                # Strategy, risk and data settings
-│   ├── modules/
-│   │   ├── price_fetcher.py     # Alpha Vantage quotes, yfinance history
-│   │   ├── indicators.py        # Moving averages and price features
-│   │   ├── strategy.py          # Long/short signals and position states
-│   │   ├── backtest.py          # Execution and trade accounting
-│   │   ├── runner.py            # Orchestration and CSV export
-│   │   └── utils.py             # Logging and data helpers
-│   ├── data/
-│   └── logs/
-│       └── symbols.txt         # Instrument universe
-└── .gitignore
+Historical equity prices
+        |
+        v
+Clean and organise CSV data
+        |
+        v
+MA10 / MA50 indicators
+        |
+        v
+Long / short signal generation
+        |
+        v
+Position and trade simulation
+        |
+        v
+Individual trade logs and summary statistics
 ```
 
-The path references above describe the implementation. The repository also contains stored data/log artefacts; generated files may differ between runs.
+The command-line launcher also has a **separate threshold-based price alert** feature. This is not the same as the historical moving-average backtest.
 
-## Signal generation
+## 3. Strategy and indicator logic
 
-The strategy compares the shorter and longer moving averages at each data sample.
+For each timestamp, the strategy compares the faster and slower moving averages.
 
-| Condition | Raw signal | Interpretation |
+| Condition | Signal | Interpretation |
 | --- | ---: | --- |
 | MA10 > MA50 | +1 | Long |
 | MA10 < MA50 | -1 | Short |
 | MA10 = MA50 | 0 | Neutral |
 
-The actual function in [`project/modules/strategy.py`](project/modules/strategy.py):
+![Moving-average signals in original development work](Images/trading-signals.png)
 
-```python
-def generate_signals(df):
-    """
-    generate_signals - generates +1, 0, -1 signals based
-    on Fast_MA and Slow_MA crossovers
-    """
-    df["Signal"] = 0
+*Moving-average signal visualisation from the original project.*
 
-    df.loc[df[Fast_MA] > df[Slow_MA], "Signal"] = 1
-    df.loc[df[Fast_MA] < df[Slow_MA], "Signal"] = -1
+The `generate_signals()` function writes those states to a `Signal` column. The `add_position()` function carries forward the previous position when no new nonzero signal occurs. These rules provide a basic trend-following strategy rather than a price forecast.
 
-    return df
-```
+## 4. Backtesting and risk management
 
-`add_position()` carries the previous position forward whenever no new nonzero signal is generated. The strategy uses technical rules rather than statistical forecasting or machine learning.
+The simulation processes historical rows, opens or closes positions according to the recorded state and evaluates stop-loss/take-profit conditions. It attempts to account for slippage and transaction costs.
 
-## Risk and transaction assumptions
+**Configured parameters** from [`project/config.py`](project/config.py):
 
-Values below are **current configuration settings**, not experimentally measured brokerage costs:
-
-| Parameter | Configured value |
+| Setting | Value |
 | --- | ---: |
-| Moving averages | MA10 and MA50 |
-| Initial simulated wallet | £1,000 |
-| Allocation per trade | 5% of available balance |
-| Stop-loss threshold | 2% |
-| Take-profit threshold | 2% |
+| Simulated starting balance | £1,000 |
+| Allocation per trade | 5% of available simulated balance |
+| Fast / slow averages | MA10 / MA50 |
+| Stop loss | 2% |
+| Take profit | 2% |
 | Slippage assumption | 0.05% |
 | Percentage fee | 0.1% |
 | Fixed fee | 0.1 currency unit |
-| Default historical interval | 1 hour |
+| Default download interval | 1 hour |
 
-The project keeps a list of **11 equities** in [`project/logs/symbols.txt`](project/logs/symbols.txt). The backtester allocates the initial balance by instrument before simulating each symbol separately.
+These numbers are **model assumptions**, not observed brokerage charges. Position accounting and the treatment of fees require additional verification before backtest results can be considered reliable.
 
-## Execution and outputs
+## 5. Trade logging and outputs
 
-The command-line launcher, [`project/Main.py`](project/Main.py), offers six menu actions:
+The project generates per-symbol trade CSVs and includes routines for combined transaction exports and profit summaries.
 
-1. Run price-threshold alerts.
-2. Run backtests.
-3. Prepare indicators and signals.
-4. Export a combined trade log.
-5. Download historical data.
-6. Generate a profit summary.
+![Original CSV transaction logs](Images/trading-trade-logs.png)
 
-The source exports timestamps, symbol, entry/exit prices, position direction and simulated trade profit to CSV. The summary aggregates trade count, win rate, average wins/losses and other profit statistics.
+*Example transaction records from the original project documentation.*
 
-## Setup and reproducibility status
+Recorded fields include the symbol, entry/exit times and prices, position direction and simulated profit or loss. The summary routine calculates metrics such as trade count, win rate, average win and average loss.
 
-The current source imports `pandas`, `numpy`, `yfinance` and `requests` and expects a **private Alpha Vantage key** through `from secrets import Alpha_Key` in `project/config.py`.
+The original project notes reported **approximately 30–40% win rates** for some historical tests. These are not treated as verified performance results because the complete matching datasets, configuration and reproducible logs were not provided together. An earlier README contained illustrative figures rather than a documented test benchmark.
+
+**A win rate alone does not establish profitability.** Strategy evaluation should also account for payoff distribution, trading costs, maximum drawdown, exposure and performance against a suitable benchmark.
+
+## 6. Running the project
+
+The code imports `numpy`, `pandas`, `requests` and `yfinance`. From the repository root:
 
 ```bash
 python -m pip install -r requirements.txt
 python project/Main.py
 ```
 
-**Important:** This documents the intended entry point, not a verified, one-command clean installation. A local secret module is required; never commit your API key. The current code also contains output-path differences between preparing analysis files and reading them for backtests. These require reconciliation before a fresh environment can reproduce all six menu actions reliably.
+**Current reproducibility limitation:** This is the intended launcher, not a verified clean-install command. [`project/config.py`](project/config.py) imports `Alpha_Key` from a local `secrets` module, which is not supplied in the repository. Output-path differences between data preparation and backtesting also need resolving before the full workflow can be reproduced on a fresh checkout.
 
-## Results and engineering interpretation
+Never upload an actual API key. The local `project/secrets.py` file is excluded in `.gitignore`.
 
-Original development notes describe historical tests using 11 equities and a rough **30–40% win rate** for certain runs. The old README contains separate illustrative numbers. Those figures are **not presented as a verified benchmark** because the exact data snapshot, configuration, run date and corresponding trade log are not linked together.
+## 7. Engineering lessons and next steps
 
-Win rate by itself does not establish strategy quality. A proper evaluation also requires profit factor, payoff distribution, maximum drawdown, trading costs, exposure, out-of-sample testing and comparison with a passive benchmark.
+**What this project demonstrates**
+- Modular Python architecture that separates data, signals, simulated execution and reporting.
+- Practical use of pandas and NumPy on historical price datasets.
+- Trade-logging and risk-configuration design.
+- The importance of distinguishing plausible backtest output from validated performance.
 
-## Limitations and planned improvements
+**Improvements required before trusting the numerical results**
+- Add unit tests for long/short transitions, quantity, fees and final trade closure.
+- Align the input/output paths used across `runner.py` and `config.py`.
+- Test next-bar order execution to avoid same-bar look-ahead bias.
+- Save each historical dataset, configuration and code revision alongside its result.
+- Add equity curves, maximum drawdown and a passive-market benchmark.
+- Test out-of-sample and walk-forward periods.
 
-- Validate every cost, quantity and open-position-close accounting path with unit tests.
-- Check signal timing and next-bar execution to avoid same-bar look-ahead bias.
-- Make output paths consistent across preparation, simulation and reporting.
-- Freeze historical datasets and export the full config with each run.
-- Compare against a passive benchmark, then test out-of-sample and walk-forward periods.
-- Add drawdown and equity-curve visualisations from reproducible trade logs.
-- Introduce environment-variable-based API key loading before wider reuse.
-
-**Status:** research/backtesting prototype. No live trading system, reproducible profitability claim or deployed trading service is represented here.
+**Status:** Independent Python research prototype. No live execution, audited profitability or machine-learning prediction capability is claimed.
 
 ## Portfolio
 
-[Engineering case study](https://farhan10904.github.io/engineering-portfolio/project.html?id=trading) · [Main engineering portfolio](https://farhan10904.github.io/engineering-portfolio/)
+[Full engineering case study](https://farhan10904.github.io/engineering-portfolio/project.html?id=trading) · [Engineering portfolio](https://farhan10904.github.io/engineering-portfolio/)
