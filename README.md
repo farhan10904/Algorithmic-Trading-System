@@ -147,6 +147,18 @@ Never upload an actual API key. The local `project/secrets.py` file is excluded 
 
 **Status:** Independent Python research prototype. No live execution, audited profitability or machine-learning prediction capability is claimed.
 
+## Author
+
+**Muhammed Farhan Ali**
+
+MEng Mechanical Engineering - University of Leicester
+
+[Engineering Portfolio](https://farhan10904.github.io/engineering-portfolio/) | [GitHub](https://github.com/farhan10904) | [LinkedIn](https://www.linkedin.com/in/farhan-ali-95047a245/)
+
+## Acknowledgements
+
+AI tools were used for planning, debugging assistance, code review, and documentation editing. final validation were performed and reviewed by the author.
+
 ## Portfolio
 
 [Full engineering case study](https://farhan10904.github.io/engineering-portfolio/project.html?id=trading) · [Engineering portfolio](https://farhan10904.github.io/engineering-portfolio/)
